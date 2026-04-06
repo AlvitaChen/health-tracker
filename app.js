@@ -1,6 +1,6 @@
 const { useState, useEffect, useRef } = React;
 
-const SUPABASE_URL = "https://drsgwtyujltbnfflfhaon.supabase.co";
+const SUPABASE_URL = "https://drsgwtyujltbnflfhaon.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyc2d3dHl1amx0Ym5mbGZoYW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NzYxMDcsImV4cCI6MjA5MTA1MjEwN30.k6mBj1MLYcW87C5-6Ctt8mzuzyq_WzjlhNvMDyNhtMQ";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
