@@ -45,8 +45,6 @@ function theme(dark) {
   };
 }
 
-// ── UI helpers ────────────────────────────────────────────────────────────────
-
 function ProgressBar({ label, value, target, unit, color, t }) {
   const pct = Math.min(100, Math.round((value/target)*100));
   return (
@@ -182,8 +180,6 @@ function PhaseChip({ phase, onSelect, t }) {
   );
 }
 
-// ── Onboarding ────────────────────────────────────────────────────────────────
-
 function Onboarding({ onDone, t }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -192,14 +188,17 @@ function Onboarding({ onDone, t }) {
   const [periodLength, setPeriodLength] = useState(6);
   const [cycleStart, setCycleStart] = useState(todayStr());
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const inputStyle = { width:"100%", padding:"12px", borderRadius:10, border:`1px solid ${t.border}`, fontSize:16, background:t.inputBg, color:t.text, fontFamily:"inherit", boxSizing:"border-box" };
   const labelStyle = { fontSize:12, color:t.textSecondary, display:"block", marginBottom:5 };
 
   const finish = async () => {
-    setSaving(true);
+    setSaving(true); setError("");
     const { data, error } = await sb.from("users").insert({ goals, cycle_length: cycleLength, period_length: periodLength, cycle_start: cycleStart }).select().single();
-    if (!error) { localStorage.setItem("ht_user_id", data.id); onDone(data); }
+    if (error) { setError(error.message); setSaving(false); return; }
+    localStorage.setItem("ht_user_id", data.id);
+    onDone(data);
     setSaving(false);
   };
 
@@ -246,6 +245,7 @@ function Onboarding({ onDone, t }) {
         <label style={labelStyle}>When did your last cycle start?</label>
         <input type="date" value={cycleStart} onChange={e=>setCycleStart(e.target.value)} style={inputStyle}/>
       </div>
+      {error && <div style={{marginBottom:12,fontSize:13,color:"#c0614a"}}>{error}</div>}
       <div style={{display:"flex",gap:8}}>
         <button onClick={()=>setStep(1)} style={{flex:1,padding:"14px",borderRadius:10,border:`1px solid ${t.border}`,background:"transparent",cursor:"pointer",fontSize:15,color:t.textSecondary}}>Back</button>
         <button onClick={finish} disabled={saving} style={{flex:2,padding:"14px",borderRadius:10,border:"none",background:"#2DB885",cursor:"pointer",fontSize:15,fontWeight:600,color:"#fff"}}>
@@ -264,8 +264,6 @@ function Onboarding({ onDone, t }) {
     </div>
   );
 }
-
-// ── Main App ──────────────────────────────────────────────────────────────────
 
 function App() {
   const dark = useDark();
@@ -339,9 +337,7 @@ function App() {
   return (
     <div style={{maxWidth:480,margin:"0 auto",padding:"12px 16px 80px",background:t.bg,minHeight:"100vh"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-        <div>
-          <div style={{fontSize:12,color:t.textSecondary}}>{new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
-        </div>
+        <div style={{fontSize:12,color:t.textSecondary}}>{new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
         <PhaseChip phase={currentPhase} t={t} onSelect={phase=>{
           upsertDailyLog(today, { menstrual_phase: phase });
           if (phase==="Menstrual") {
@@ -366,8 +362,6 @@ function App() {
   );
 }
 
-// ── Food Log Tab ──────────────────────────────────────────────────────────────
-
 function FoodLogTab({ today, foodLog, goals, upsertFoodLog, t }) {
   const [stage, setStage] = useState("idle");
   const [pending, setPending] = useState(null);
@@ -388,7 +382,11 @@ If correction to previous estimate: adjust accordingly. Know Indonesian/Balinese
     else if (photos && photos.length) content = [...photos.map(d=>({type:"image",source:{type:"base64",media_type:"image/jpeg",data:d}})),{type:"text",text:msg||"Estimate nutrition from all food items in these photos."}];
     else content = msg;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:sys,messages:[{role:"user",content}]})});
+      const res = await fetch("/api/estimate",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:sys,messages:[{role:"user",content}]})
+      });
       const d = await res.json();
       const text = d.content?.find(c=>c.type==="text")?.text||"";
       const parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
@@ -462,8 +460,6 @@ If correction to previous estimate: adjust accordingly. Know Indonesian/Balinese
   );
 }
 
-// ── Daily Tab ─────────────────────────────────────────────────────────────────
-
 function DailyTab({ today, dailyLog, foodLog, goals, upsertDailyLog, dailyLogs, t }) {
   const lastComp = (() => {
     const keys = Object.keys(dailyLogs).filter(k=>k<today&&dailyLogs[k]?.body_comp).sort().reverse();
@@ -516,8 +512,6 @@ function DailyTab({ today, dailyLog, foodLog, goals, upsertDailyLog, dailyLogs, 
   );
 }
 
-// ── Progress Tab ──────────────────────────────────────────────────────────────
-
 function ProgressTab({ today, foodLogs, dailyLogs, goals, user, t }) {
   const [view,setView]=useState("daily");
 
@@ -551,8 +545,6 @@ function ProgressTab({ today, foodLogs, dailyLogs, goals, user, t }) {
   );
 }
 
-// ── Cycle Tab ─────────────────────────────────────────────────────────────────
-
 function CycleTab({ today, foodLogs, dailyLogs, user, t }) {
   const cycleStart = user.cycle_start;
   if (!cycleStart) return <div style={{padding:"40px 0",textAlign:"center",color:t.textTertiary}}>Set your cycle start date in Settings.</div>;
@@ -583,8 +575,6 @@ function CycleTab({ today, foodLogs, dailyLogs, user, t }) {
     </div>
   );
 }
-
-// ── Settings Tab ──────────────────────────────────────────────────────────────
 
 function SettingsTab({ user, updateUser, t }) {
   const [goals,setGoals]=useState(user.goals||DEFAULT_GOALS);
