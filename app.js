@@ -180,9 +180,58 @@ function PhaseChip({ phase, onSelect, t }) {
   );
 }
 
-function Onboarding({ onDone, t }) {
+// ── Auth Screen ───────────────────────────────────────────────────────────────
+
+function AuthScreen({ t, onAuth }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const inputStyle = { width:"100%", padding:"14px", borderRadius:10, border:`1px solid ${t.border}`, fontSize:16, background:t.inputBg, color:t.text, fontFamily:"inherit", boxSizing:"border-box", marginBottom:12 };
+
+  const handle = async () => {
+    if (!email.trim() || !password.trim()) { setError("Please enter email and password."); return; }
+    setLoading(true); setError("");
+    if (mode === "login") {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) { setError(error.message); setLoading(false); return; }
+      onAuth(data.user);
+    } else {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) { setError(error.message); setLoading(false); return; }
+      onAuth(data.user);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{maxWidth:480,margin:"0 auto",padding:"60px 24px",background:t.bg,minHeight:"100vh"}}>
+      <h1 style={{fontSize:24,fontWeight:600,color:t.text,marginBottom:6}}>Health Tracker</h1>
+      <p style={{fontSize:14,color:t.textSecondary,marginBottom:40}}>Track food, cycle, and body composition.</p>
+      <div style={{display:"flex",gap:8,marginBottom:28}}>
+        {["login","signup"].map(m=>(
+          <button key={m} onClick={()=>{setMode(m);setError("");}} style={{flex:1,padding:"10px",borderRadius:10,border:`1px solid ${m===mode?t.borderStrong:t.border}`,background:m===mode?t.bgSecondary:"transparent",cursor:"pointer",fontSize:14,fontWeight:m===mode?600:400,color:t.text}}>
+            {m==="login"?"Sign in":"Create account"}
+          </button>
+        ))}
+      </div>
+      <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" style={inputStyle}/>
+      <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" style={{...inputStyle,marginBottom:error?8:20}}
+        onKeyDown={e=>{if(e.key==="Enter")handle();}}/>
+      {error && <div style={{fontSize:13,color:"#c0614a",marginBottom:16}}>{error}</div>}
+      <button onClick={handle} disabled={loading} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:"#2DB885",cursor:"pointer",fontSize:15,fontWeight:600,color:"#fff"}}>
+        {loading?"Please wait...":(mode==="login"?"Sign in":"Create account")}
+      </button>
+    </div>
+  );
+}
+
+// ── Onboarding ────────────────────────────────────────────────────────────────
+
+function Onboarding({ onDone, t, authUser }) {
   const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [cycleLength, setCycleLength] = useState(27);
   const [periodLength, setPeriodLength] = useState(6);
@@ -195,27 +244,16 @@ function Onboarding({ onDone, t }) {
 
   const finish = async () => {
     setSaving(true); setError("");
-    const { data, error } = await sb.from("users").insert({ goals, cycle_length: cycleLength, period_length: periodLength, cycle_start: cycleStart }).select().single();
+    const { data, error } = await sb.from("users").insert({ id: authUser.id, goals, cycle_length: cycleLength, period_length: periodLength, cycle_start: cycleStart }).select().single();
     if (error) { setError(error.message); setSaving(false); return; }
-    localStorage.setItem("ht_user_id", data.id);
     onDone(data);
     setSaving(false);
   };
 
   const steps = [
     <div key="0">
-      <h2 style={{fontSize:22,fontWeight:600,color:t.text,marginBottom:8}}>Welcome to Health Tracker</h2>
-      <p style={{fontSize:15,color:t.textSecondary,marginBottom:32}}>Let's set up your personal goals and cycle info. You can change these anytime in Settings.</p>
-      <div style={{marginBottom:16}}>
-        <label style={labelStyle}>Your name</label>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Alvita" style={inputStyle}/>
-      </div>
-      <button onClick={()=>setStep(1)} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:"#2DB885",cursor:"pointer",fontSize:15,fontWeight:600,color:"#fff"}}>Continue</button>
-    </div>,
-
-    <div key="1">
-      <h2 style={{fontSize:20,fontWeight:600,color:t.text,marginBottom:6}}>Daily nutrition goals</h2>
-      <p style={{fontSize:13,color:t.textSecondary,marginBottom:20}}>These are your daily targets. Adjust to match your plan.</p>
+      <h2 style={{fontSize:20,fontWeight:600,color:t.text,marginBottom:6}}>Set your goals</h2>
+      <p style={{fontSize:13,color:t.textSecondary,marginBottom:20}}>Your daily nutrition targets. You can change these anytime in Settings.</p>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:24}}>
         {[["Calories (kcal)","cal"],["Protein (g)","protein"],["Carbs (g)","carbs"],["Fat (g)","fat"],["Fiber (g)","fiber"],["Steps","steps"]].map(([lbl,key])=>(
           <div key={key}>
@@ -224,13 +262,10 @@ function Onboarding({ onDone, t }) {
           </div>
         ))}
       </div>
-      <div style={{display:"flex",gap:8}}>
-        <button onClick={()=>setStep(0)} style={{flex:1,padding:"14px",borderRadius:10,border:`1px solid ${t.border}`,background:"transparent",cursor:"pointer",fontSize:15,color:t.textSecondary}}>Back</button>
-        <button onClick={()=>setStep(2)} style={{flex:2,padding:"14px",borderRadius:10,border:"none",background:"#2DB885",cursor:"pointer",fontSize:15,fontWeight:600,color:"#fff"}}>Continue</button>
-      </div>
+      <button onClick={()=>setStep(1)} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:"#2DB885",cursor:"pointer",fontSize:15,fontWeight:600,color:"#fff"}}>Continue</button>
     </div>,
 
-    <div key="2">
+    <div key="1">
       <h2 style={{fontSize:20,fontWeight:600,color:t.text,marginBottom:6}}>Cycle settings</h2>
       <p style={{fontSize:13,color:t.textSecondary,marginBottom:20}}>Used to auto-suggest your menstrual phase each day.</p>
       <div style={{marginBottom:14}}>
@@ -247,7 +282,7 @@ function Onboarding({ onDone, t }) {
       </div>
       {error && <div style={{marginBottom:12,fontSize:13,color:"#c0614a"}}>{error}</div>}
       <div style={{display:"flex",gap:8}}>
-        <button onClick={()=>setStep(1)} style={{flex:1,padding:"14px",borderRadius:10,border:`1px solid ${t.border}`,background:"transparent",cursor:"pointer",fontSize:15,color:t.textSecondary}}>Back</button>
+        <button onClick={()=>setStep(0)} style={{flex:1,padding:"14px",borderRadius:10,border:`1px solid ${t.border}`,background:"transparent",cursor:"pointer",fontSize:15,color:t.textSecondary}}>Back</button>
         <button onClick={finish} disabled={saving} style={{flex:2,padding:"14px",borderRadius:10,border:"none",background:"#2DB885",cursor:"pointer",fontSize:15,fontWeight:600,color:"#fff"}}>
           {saving?"Setting up...":"Get started"}
         </button>
@@ -258,16 +293,19 @@ function Onboarding({ onDone, t }) {
   return (
     <div style={{maxWidth:480,margin:"0 auto",padding:"48px 24px",background:t.bg,minHeight:"100vh"}}>
       <div style={{display:"flex",gap:6,marginBottom:32}}>
-        {[0,1,2].map(i=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=step?"#2DB885":t.bgTertiary}}/>)}
+        {[0,1].map(i=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=step?"#2DB885":t.bgTertiary}}/>)}
       </div>
       {steps[step]}
     </div>
   );
 }
 
+// ── Main App ──────────────────────────────────────────────────────────────────
+
 function App() {
   const dark = useDark();
   const t = theme(dark);
+  const [authUser, setAuthUser] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("log");
@@ -276,14 +314,30 @@ function App() {
   const today = todayStr();
 
   useEffect(() => {
-    const uid = localStorage.getItem("ht_user_id");
-    if (uid) {
-      sb.from("users").select("*").eq("id", uid).single().then(({ data }) => {
-        if (data) { setUser(data); fetchLogs(uid); }
-        else setLoading(false);
-      });
-    } else setLoading(false);
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setAuthUser(session.user);
+        loadUserProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setAuthUser(session.user);
+        loadUserProfile(session.user.id);
+      } else {
+        setAuthUser(null); setUser(null); setLoading(false);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
+
+  const loadUserProfile = async (uid) => {
+    const { data } = await sb.from("users").select("*").eq("id", uid).single();
+    if (data) { setUser(data); fetchLogs(uid); }
+    else setLoading(false);
+  };
 
   const fetchLogs = async (uid) => {
     const [fl, dl] = await Promise.all([
@@ -299,11 +353,8 @@ function App() {
     const existing = foodLogs[date];
     const payload = { user_id: user.id, date, ...updates, updated_at: new Date().toISOString() };
     let result;
-    if (existing?.id) {
-      result = await sb.from("food_logs").update(payload).eq("id", existing.id).select().single();
-    } else {
-      result = await sb.from("food_logs").insert(payload).select().single();
-    }
+    if (existing?.id) result = await sb.from("food_logs").update(payload).eq("id", existing.id).select().single();
+    else result = await sb.from("food_logs").insert(payload).select().single();
     if (result.data) setFoodLogs(prev => ({ ...prev, [date]: result.data }));
   };
 
@@ -311,11 +362,8 @@ function App() {
     const existing = dailyLogs[date];
     const payload = { user_id: user.id, date, ...updates, updated_at: new Date().toISOString() };
     let result;
-    if (existing?.id) {
-      result = await sb.from("daily_logs").update(payload).eq("id", existing.id).select().single();
-    } else {
-      result = await sb.from("daily_logs").insert(payload).select().single();
-    }
+    if (existing?.id) result = await sb.from("daily_logs").update(payload).eq("id", existing.id).select().single();
+    else result = await sb.from("daily_logs").insert(payload).select().single();
     if (result.data) setDailyLogs(prev => ({ ...prev, [date]: result.data }));
   };
 
@@ -324,8 +372,11 @@ function App() {
     if (data) setUser(data);
   };
 
+  const signOut = async () => { await sb.auth.signOut(); };
+
   if (loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:t.bg,color:t.textSecondary,fontSize:14}}>Loading...</div>;
-  if (!user) return <Onboarding onDone={u=>{setUser(u);fetchLogs(u.id);}} t={t}/>;
+  if (!authUser) return <AuthScreen t={t} onAuth={u=>{setAuthUser(u);loadUserProfile(u.id);}}/>;
+  if (!user) return <Onboarding onDone={u=>{setUser(u);fetchLogs(u.id);}} t={t} authUser={authUser}/>;
 
   const goals = user.goals || DEFAULT_GOALS;
   const todayFood = foodLogs[today] || {};
@@ -351,7 +402,7 @@ function App() {
       {tab==="daily" && <DailyTab today={today} dailyLog={todayDaily} foodLog={todayFood} goals={goals} upsertDailyLog={upsertDailyLog} dailyLogs={dailyLogs} t={t}/>}
       {tab==="progress" && <ProgressTab today={today} foodLogs={foodLogs} dailyLogs={dailyLogs} goals={goals} user={user} t={t}/>}
       {tab==="cycle" && <CycleTab today={today} foodLogs={foodLogs} dailyLogs={dailyLogs} user={user} t={t}/>}
-      {tab==="settings" && <SettingsTab user={user} updateUser={updateUser} t={t}/>}
+      {tab==="settings" && <SettingsTab user={user} updateUser={updateUser} signOut={signOut} t={t} authUser={authUser}/>}
 
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:t.bg,borderTop:`1px solid ${t.border}`,display:"flex",zIndex:10}}>
         {tabs.map(tb=>(
@@ -361,6 +412,8 @@ function App() {
     </div>
   );
 }
+
+// ── Food Log Tab ──────────────────────────────────────────────────────────────
 
 function FoodLogTab({ today, foodLog, goals, upsertFoodLog, t }) {
   const [stage, setStage] = useState("idle");
@@ -460,6 +513,8 @@ If correction to previous estimate: adjust accordingly. Know Indonesian/Balinese
   );
 }
 
+// ── Daily Tab ─────────────────────────────────────────────────────────────────
+
 function DailyTab({ today, dailyLog, foodLog, goals, upsertDailyLog, dailyLogs, t }) {
   const lastComp = (() => {
     const keys = Object.keys(dailyLogs).filter(k=>k<today&&dailyLogs[k]?.body_comp).sort().reverse();
@@ -488,17 +543,14 @@ function DailyTab({ today, dailyLog, foodLog, goals, upsertDailyLog, dailyLogs, 
   return (
     <div>
       <div style={{fontSize:16,fontWeight:600,marginBottom:16,color:t.text}}>{new Date(today).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}</div>
-
       <div style={{marginBottom:14,padding:14,borderRadius:12,border:`1px solid ${t.border}`,background:t.bgSecondary}}>
         <div style={{fontSize:13,fontWeight:600,color:t.textSecondary,marginBottom:10}}>Today's snapshot</div>
         <ProgressBar label="Calories" value={totals.cal} target={goals.cal} unit="" color={MACRO_COLORS.cal} t={t}/>
         <ProgressBar label="Protein" value={totals.protein} target={goals.protein} unit="g" color={MACRO_COLORS.protein} t={t}/>
         <ProgressBar label="Steps" value={dailyLog.steps||0} target={goals.steps} unit="" color={MACRO_COLORS.steps} t={t}/>
       </div>
-
       <div style={{marginBottom:14}}><label style={labelStyle}>Steps</label><input type="number" value={steps} onChange={e=>setSteps(e.target.value)} placeholder="e.g. 7500" style={inputStyle}/></div>
       <div style={{marginBottom:22}}><label style={labelStyle}>Activity notes</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Hyrox 4k, strength" style={inputStyle}/></div>
-
       <div style={{fontSize:13,fontWeight:600,color:t.textSecondary,marginBottom:12}}>Body composition <span style={{fontWeight:400,fontSize:12}}>(auto-filled from last entry)</span></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:22}}>
         {[["Weight (kg)",weight,setWeight],["Body fat %",bf,setBf],["Muscle %",muscle,setMuscle],["Visceral fat",visceral,setVisceral],["BMR",bmr,setBmr]].map(([lbl,val,setter])=>(
@@ -512,9 +564,10 @@ function DailyTab({ today, dailyLog, foodLog, goals, upsertDailyLog, dailyLogs, 
   );
 }
 
+// ── Progress Tab ──────────────────────────────────────────────────────────────
+
 function ProgressTab({ today, foodLogs, dailyLogs, goals, user, t }) {
   const [view,setView]=useState("daily");
-
   const getDays = () => {
     if(view==="daily") return [today];
     if(view==="weekly"){const diff=Math.round((new Date(today)-new Date(user.cycle_start))/86400000);return dateRange(addDays(user.cycle_start,Math.floor(diff/7)*7),today);}
@@ -522,12 +575,10 @@ function ProgressTab({ today, foodLogs, dailyLogs, goals, user, t }) {
     if(view==="phase"){const ph=dailyLogs[today]?.menstrual_phase||guessPhase(today,user.cycle_start,user.cycle_length,user.period_length);return Object.keys(dailyLogs).filter(d=>d<=today&&(dailyLogs[d]?.menstrual_phase||guessPhase(d,user.cycle_start,user.cycle_length,user.period_length))===ph).sort();}
     return [today];
   };
-
   const days=getDays();
   const avg=key=>{const rel=days.filter(d=>foodLogs[d]?.items?.length);return rel.length?rel.reduce((s,d)=>s+calcTotals(foodLogs[d].items)[key],0)/rel.length:0;};
   const avgSteps=()=>{const rel=days.filter(d=>dailyLogs[d]?.steps);return rel.length?rel.reduce((s,d)=>s+dailyLogs[d].steps,0)/rel.length:0;};
   const m={cal:avg("cal"),protein:avg("protein"),carbs:avg("carbs"),fat:avg("fat"),fiber:avg("fiber"),steps:avgSteps()};
-
   return (
     <div>
       <div style={{display:"flex",gap:6,marginBottom:18}}>
@@ -544,6 +595,8 @@ function ProgressTab({ today, foodLogs, dailyLogs, goals, user, t }) {
     </div>
   );
 }
+
+// ── Cycle Tab ─────────────────────────────────────────────────────────────────
 
 function CycleTab({ today, foodLogs, dailyLogs, user, t }) {
   const cycleStart = user.cycle_start;
@@ -576,7 +629,9 @@ function CycleTab({ today, foodLogs, dailyLogs, user, t }) {
   );
 }
 
-function SettingsTab({ user, updateUser, t }) {
+// ── Settings Tab ──────────────────────────────────────────────────────────────
+
+function SettingsTab({ user, updateUser, signOut, t, authUser }) {
   const [goals,setGoals]=useState(user.goals||DEFAULT_GOALS);
   const [cycleLength,setCycleLength]=useState(user.cycle_length||27);
   const [periodLength,setPeriodLength]=useState(user.period_length||6);
@@ -594,27 +649,23 @@ function SettingsTab({ user, updateUser, t }) {
   return (
     <div>
       <div style={{fontSize:16,fontWeight:600,marginBottom:20,color:t.text}}>Settings</div>
-
       <div style={{fontSize:13,fontWeight:600,color:t.textSecondary,marginBottom:12}}>Daily goals</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
         {[["Calories","cal"],["Protein (g)","protein"],["Carbs (g)","carbs"],["Fat (g)","fat"],["Fiber (g)","fiber"],["Steps","steps"]].map(([lbl,key])=>(
           <div key={key}><label style={{...labelStyle,fontSize:11}}>{lbl}</label><input type="number" value={goals[key]} onChange={e=>setGoals(g=>({...g,[key]:Number(e.target.value)}))} style={{...inputStyle,padding:"10px"}}/></div>
         ))}
       </div>
-
       <div style={{fontSize:13,fontWeight:600,color:t.textSecondary,marginBottom:12}}>Cycle settings</div>
       <div style={{marginBottom:12}}><label style={labelStyle}>Cycle length (days)</label><input type="number" value={cycleLength} onChange={e=>setCycleLength(Number(e.target.value))} style={inputStyle}/></div>
       <div style={{marginBottom:12}}><label style={labelStyle}>Period length (days)</label><input type="number" value={periodLength} onChange={e=>setPeriodLength(Number(e.target.value))} style={inputStyle}/></div>
       <div style={{marginBottom:24}}><label style={labelStyle}>Current cycle start date</label><input type="date" value={cycleStart} onChange={e=>setCycleStart(e.target.value)} style={inputStyle}/></div>
-
       <button onClick={save} style={{width:"100%",padding:"14px",borderRadius:10,border:`1px solid ${t.border}`,background:saved?"#1a5c3a":t.bgSecondary,cursor:"pointer",fontSize:15,fontWeight:600,color:saved?"#2DB885":t.text}}>
         {saved?"Saved ✓":"Save settings"}
       </button>
-
       <div style={{marginTop:32,padding:14,borderRadius:12,border:`1px solid ${t.border}`,background:t.bgSecondary}}>
         <div style={{fontSize:13,fontWeight:600,color:t.textSecondary,marginBottom:4}}>Account</div>
-        <div style={{fontSize:12,color:t.textTertiary}}>User ID: {user.id}</div>
-        <button onClick={()=>{localStorage.removeItem("ht_user_id");window.location.reload();}} style={{marginTop:12,width:"100%",padding:"11px",borderRadius:10,border:`1px solid ${t.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:"#c0614a"}}>Sign out</button>
+        <div style={{fontSize:12,color:t.textTertiary,marginBottom:12}}>{authUser?.email}</div>
+        <button onClick={signOut} style={{width:"100%",padding:"11px",borderRadius:10,border:`1px solid ${t.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:"#c0614a"}}>Sign out</button>
       </div>
     </div>
   );
