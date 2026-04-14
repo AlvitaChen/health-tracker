@@ -493,9 +493,9 @@ If correction to previous estimate: adjust accordingly. Know Indonesian/Balinese
         </div>
       )}
 
-      <ChatInput onSubmit={(msg,photos)=>{
-        if(stage==="correct") estimate(msg,null,true,pending);
-        else if(stage==="clarify") estimate(msg,null);
+<ChatInput onSubmit={(msg,photos)=>{
+        if(stage==="correct") estimate(msg,photos,true,pending);
+        else if(stage==="clarify") estimate(msg,photos);
         else estimate(msg,photos);
       }} loading={loading} t={t}/>
 
